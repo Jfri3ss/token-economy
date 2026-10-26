@@ -1,0 +1,10 @@
+{
+  "name": "token-economy",
+  "version": "0.1.0",
+  "description": "Hooks that cut Claude Code token spend: route each task to the cheapest fitting model, keep large output out of the context, size the end-of-turn check to the change, and a ledger that shows where the tokens went.",
+  "author": { "name": "Emmber, Inc." },
+  "homepage": "https://github.com/Jfri3ss/token-economy",
+  "repository": "https://github.com/Jfri3ss/token-economy",
+  "license": "MIT",
+  "keywords": ["tokens", "cost", "hooks", "model-routing", "context"]
+}

@@ -1,0 +1,17 @@
+{
+  "repos": {
+    "app": "~/my-app",
+    "server": "~/my-server"
+  },
+  "gates": {
+    "*.php": "php -l {file}",
+    "*.js": "npx jest --findRelatedTests {file} 2>&1 | tail -20",
+    "*.ts": "npx tsc --noEmit 2>&1 | tail -20",
+    "*.py": "python3 -m py_compile {file}"
+  },
+  "prod_command": "ssh my-prod 'git -C /srv/app log -1 --oneline; tail -n 20 /var/log/app.log'",
+  "hard_words": ["payment", "payout", "stripe", "billing"],
+  "note_paths": ["\\.(md|txt|markdown|rst)$", "/docs?/", "/reports?/"],
+  "max_lines": 300,
+  "check_model": "sonnet"
+}

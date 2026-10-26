@@ -1,0 +1,14 @@
+{
+  "name": "emmber",
+  "owner": {
+    "name": "Emmber, Inc."
+  },
+  "plugins": [
+    {
+      "name": "token-economy",
+      "source": "./",
+      "description": "Cut Claude Code token spend with model routing, an output guard, a sized end-of-turn check and a ledger."
+    }
+  ],
+  "description": "Plugins from Emmber, Inc.: token-economy cuts Claude Code token spend with model routing, an output guard, a sized end-of-turn check and a ledger."
+}

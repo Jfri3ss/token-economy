@@ -1,0 +1,18 @@
+{
+  "description": "token-economy: model router, output guard, sized end-of-turn check.",
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/model-router-hook.py\"", "timeout": 10 } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Read|Bash", "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/output-guard-hook.py\"", "timeout": 10 } ] },
+      { "matcher": "Agent", "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/model-router-hook.py\"", "timeout": 10 } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/check-your-work-hook.py\"", "timeout": 60 } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/check-your-work-hook.py\"", "timeout": 15 } ] }
+    ]
+  }
+}
