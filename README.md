@@ -1,32 +1,67 @@
 # token-economy
 
-Hooks for Claude Code that cut token spend without lowering the bar on the work. Four pieces:
+![token-economy: cut Claude Code token spend without cutting corners](assets/social-preview.png)
 
-- **Model router.** Classifies every prompt and tells the session where the heavy part should run, so a top model spends its limit on judgment and cheaper models do the reading, testing and typing. Refuses an Agent call whose model does not fit its brief.
-- **Output guard.** Refuses the few command shapes that dump thousands of lines into the context (whole-file reads, bare `git diff`, untailed test runs, long listings) and names the smaller form.
-- **Sized end-of-turn check.** A Stop hook that asks the session to check its own changes, sized to what changed: nothing for a doc edit, a subagent check for code, the full check for a deploy.
-- **Ledger.** A script that reads the session transcripts and shows where the tokens went.
+[![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-3DDC97?style=flat-square)](https://code.claude.com/docs/en/plugins)
+[![License: MIT](https://img.shields.io/badge/license-MIT-3DDC97?style=flat-square)](LICENSE)
+![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3DDC97?style=flat-square)
+![No dependencies](https://img.shields.io/badge/dependencies-none-3DDC97?style=flat-square)
 
-## Why
+**Cut Claude Code token spend without cutting corners.** A free plugin that sends each task to the cheapest model that can do it well, keeps huge tool output out of the context, sizes the end-of-turn check to the change, and shows you where your tokens went.
 
-Measured over a week of real sessions on one project, the cost was not tool output. It was model steps multiplied by context size: every step re-sends the whole conversation, so a session that grows to 800K tokens of context pays that on every one of its steps. One session of 944 steps re-read 435 million tokens; the six sessions around it, 145 million together. Tool output over the same week was 2.5 MB, about 600K tokens. A check hook that fired at the end of every turn, when the context was largest, blocked 61 times for 16 real checks.
+## Quick start
 
-So the levers are, in order: fewer and shorter sessions, fewer steps per turn, a smaller fixed context, and keeping the work that does not need the top model off it. These hooks handle the parts that can be automated.
+```bash
+claude plugin install token-economy --marketplace Jfri3ss/token-economy
+```
 
-## Install
+Then start a new Claude Code session. That's it: the hooks are on, with no config needed.
 
-With a marketplace (needed for install by name and for updates):
+On Claude Code older than 2.1.292, add the marketplace first:
 
 ```bash
 claude plugin marketplace add Jfri3ss/token-economy
 claude plugin install token-economy@emmber
 ```
 
-Or clone it and run `claude --plugin-dir ./token-economy`.
+**What you'll see.** Each prompt gets one line of routing context, for example:
 
-Without the plugin system, copy `hooks/` and `scripts/` somewhere and register the five hook commands from `hooks/hooks.json` in your `.claude/settings.json`, replacing `${CLAUDE_PLUGIN_ROOT}` with the folder.
+```text
+Routing: read-only task. Delegate the reading to ONE Agent on haiku with a narrow brief,
+and relay its answer. Do not read the files in this context.
+```
 
-Python 3.9 or later. No dependencies.
+A command that would flood the context gets refused with the smaller form to use instead:
+
+```text
+git diff with no path can be thousands of lines. Run it with --stat first,
+then diff the paths you need (git diff -- path), or add #full.
+```
+
+And to see where your tokens went:
+
+```bash
+python3 "$(ls -d ~/.claude/plugins/cache/emmber/token-economy/*/ | tail -1)scripts/token-ledger.py" --last 8
+```
+
+## What's inside
+
+- **Model router.** Classifies every prompt as a question, a read, a routine edit, a build or a hard task, and tells the session where the heavy part should run. A top model spends its limit on judgment; Sonnet and Haiku do the reading, testing and typing. It also refuses an Agent call whose model doesn't fit its brief.
+- **Output guard.** Refuses the few command shapes that dump thousands of lines into the context (whole-file reads, bare `git diff`, untailed test runs, long listings) and names the smaller form. Add `#full` to any command to run it as written.
+- **Sized end-of-turn check.** A Stop hook that asks the session to check its own work, sized to what changed: nothing for a doc edit, a Sonnet subagent for code, the full check in the main session for a deploy.
+- **Token ledger.** Reads your session transcripts and shows steps, tokens re-read, context size, check runs and guard denials per session.
+
+## Why it works
+
+Measured over a week of real sessions on one project, the cost was not tool output. It was **model steps multiplied by context size**: every step re-sends the whole conversation, so a session that grows to 800K tokens of context pays that on every one of its steps. One session of 944 steps re-read 435 million tokens; the six sessions around it, 145 million together. Tool output over the same week was 2.5 MB, about 600K tokens. A check hook that fired at the end of every turn, when the context was largest, blocked 61 times for 16 real checks.
+
+So the levers are, in order: fewer and shorter sessions, fewer steps per turn, a smaller fixed context, and keeping work that doesn't need the top model off it. This plugin automates the last three. The first is a habit: start a fresh session per task, and watch the ledger's context column.
+
+**Accuracy doesn't drop.** Tests, lint and type checks run the same whichever model triggers them. The router never sends payments, auth, schema, deploy or design work to Haiku. Deploys keep the full check in the main session.
+
+## Install without the plugin system
+
+Copy `hooks/` and `scripts/` somewhere and register the five hook commands from `hooks/hooks.json` in your `.claude/settings.json`, replacing `${CLAUDE_PLUGIN_ROOT}` with that folder. Python 3.9 or later; no dependencies.
 
 ## Configure
 

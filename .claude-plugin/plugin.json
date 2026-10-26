@@ -1,10 +1,26 @@
 {
   "name": "token-economy",
-  "version": "0.1.0",
-  "description": "Hooks that cut Claude Code token spend: route each task to the cheapest fitting model, keep large output out of the context, size the end-of-turn check to the change, and a ledger that shows where the tokens went.",
-  "author": { "name": "Emmber, Inc." },
+  "version": "0.1.1",
+  "description": "Cut Claude Code token spend without cutting corners: route each task to the cheapest model that can do it well, keep huge tool output out of the context, size the end-of-turn check to the change, and see where your tokens went.",
+  "author": {
+    "name": "Emmber, Inc."
+  },
   "homepage": "https://github.com/Jfri3ss/token-economy",
   "repository": "https://github.com/Jfri3ss/token-economy",
   "license": "MIT",
-  "keywords": ["tokens", "cost", "hooks", "model-routing", "context"]
+  "keywords": [
+    "tokens",
+    "cost",
+    "usage-limits",
+    "hooks",
+    "model-routing",
+    "context-window",
+    "subagents"
+  ],
+  "displayName": "Token Economy",
+  "icon": "./assets/icon.png",
+  "documentationUrl": "https://github.com/Jfri3ss/token-economy#readme",
+  "supportUrl": "https://github.com/Jfri3ss/token-economy/issues",
+  "privacyPolicyUrl": "https://github.com/Jfri3ss/token-economy/blob/main/PRIVACY.md",
+  "termsOfServiceUrl": "https://github.com/Jfri3ss/token-economy/blob/main/LICENSE"
 }
