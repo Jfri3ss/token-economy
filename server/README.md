@@ -30,6 +30,10 @@ node server/dev.mjs --port 8787
 
 Uses `node:sqlite` in memory (Node 22.5+) and shows confirm links on the page instead of emailing them. Point the CLI at it with `TOKEN_ECONOMY_ENDPOINT=http://127.0.0.1:8787`.
 
+## Live
+
+Deployed 2026-10-27 as `token-economy-accounts` at https://token-economy-accounts.friesjeremiah.workers.dev (D1 `token-economy`). Sign-in email isn't set up yet, so sign-in stops at the email step.
+
 ## Deploy (owner)
 
 1. `npx wrangler d1 create token-economy` and paste the id into `wrangler.toml`.
