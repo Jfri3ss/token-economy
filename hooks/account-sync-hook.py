@@ -26,6 +26,12 @@ def main():
         if time.time() - max(state.get("last_sync") or 0, state.get("last_sync_attempt") or 0) < EVERY:
             return 0
         # Record the attempt here, so a sync that can't run (no endpoint, offline) still waits a day.
+        # Re-read first and write only if the same key is still signed in, so a logout isn't undone.
+        key = state["api_key"]
+        with open(STATE, encoding="utf-8") as f:
+            state = json.load(f)
+        if not (isinstance(state, dict) and state.get("api_key") == key and state.get("upload")):
+            return 0
         state["last_sync_attempt"] = time.time()
         tmp = f"{STATE}.{os.getpid()}.tmp"
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

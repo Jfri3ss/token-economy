@@ -189,13 +189,14 @@ async function usageUpload(env, user, data) {
   const clean = rows.map(cleanRow);
   if (clean.some((r) => !r)) return json({ error: "bad row" }, 400);
   const have = await env.DB.prepare("SELECT COUNT(*) AS n FROM usage WHERE user_id = ?").bind(user.id).first();
-  if (have.n + clean.length > MAX_ROWS_PER_USER) return json({ error: "storage limit reached" }, 413);
+  // Re-uploads overwrite rows, so only refuse once the account is already full.
+  if (have.n >= MAX_ROWS_PER_USER) return json({ error: "storage limit reached" }, 413);
   const version = String(data.version || "").slice(0, 20);
   const sql = `INSERT INTO usage (user_id, device_id, day, project, ${COUNTS.join(", ")}, version, updated_at)
-    VALUES (?, ?, ?, ?, ${COUNTS.map(() => "?").join(", ")}, ?, ?)
+    SELECT ?, ?, ?, ?, ${COUNTS.map(() => "?").join(", ")}, ?, ? WHERE EXISTS (SELECT 1 FROM api_keys WHERE user_id = ?)
     ON CONFLICT(user_id, device_id, day, project) DO UPDATE SET ${COUNTS.map((k) => `${k} = excluded.${k}`).join(", ")},
     version = excluded.version, updated_at = excluded.updated_at`;
-  const stmts = clean.map((r) => env.DB.prepare(sql).bind(user.id, data.device_id, r.day, r.project, ...COUNTS.map((k) => r[k]), version, now()));
+  const stmts = clean.map((r) => env.DB.prepare(sql).bind(user.id, data.device_id, r.day, r.project, ...COUNTS.map((k) => r[k]), version, now(), user.id));
   for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
   return json({ stored: clean.length });
 }
@@ -211,7 +212,8 @@ async function usageRead(env, user, url) {
 }
 
 async function deleteUser(env, user) {
-  // Keys first, so an upload already in flight can't add rows after the usage delete.
+  // Keys go first, and uploads insert only while the user still has a key, so an upload already
+  // in flight can't leave rows behind.
   await env.DB.batch([
     ...["api_keys", "tokens", "device_codes", "usage"].map((t) => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(user.id)),
     env.DB.prepare("DELETE FROM users WHERE id = ?").bind(user.id),
@@ -228,7 +230,10 @@ async function activate(env, request, origin) {
   const formatted = `${code.slice(0, 4)}-${code.slice(4)}`;
   if (code.length !== 8 || !EMAIL.test(email)) return html(activateForm({ error: "Enter the 8-letter code from your terminal and your email.", email }), 400);
   const row = await env.DB.prepare("SELECT * FROM device_codes WHERE user_code = ? AND expires_at > ?").bind(formatted, now()).first();
-  if (!row) return html(activateForm({ error: "That code isn't valid or has expired. Run login again for a new one.", email }), 400);
+  if (!row) {
+    if (await limited(env, `badcode:${clientIp(request)}`, 30)) return html(activateForm({ error: "Too many tries. Wait an hour." }), 429);
+    return html(activateForm({ error: "That code isn't valid or has expired. Run login again for a new one.", email }), 400);
+  }
   if (row.user_id) return html(activateForm({ error: "That code is already confirmed. Go back to your terminal." }), 400);
   const tooMany = row.emails_sent >= 3 || (await limited(env, `mail-ip:${clientIp(request)}`, 20)) ||
     (await limited(env, `mail-to:${email.toLowerCase()}`, 5));

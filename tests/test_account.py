@@ -64,6 +64,16 @@ lines = [
     entry("assistant", [{"type": "tool_use", "id": "6", "name": "Bash", "input": {"command": "git log #full"}}], {"input_tokens": 1500, "output_tokens": 10}),
     entry("user", [{"type": "tool_result", "tool_use_id": "6", "content": "commit abc"}]),
 ]
+# One step written as two lines (text, then the tool call) with the same id and usage, as Claude Code does.
+def split(mid, blocks, usage):
+    return [json.dumps({"type": "assistant", "timestamp": f"{day}T11:00:00Z",
+                        "message": {"id": mid, "content": [b], "usage": usage, "model": "claude-opus-5-5"}}) for b in blocks]
+u7 = {"input_tokens": 2000, "output_tokens": 30}
+lines += split("m7", [{"type": "tool_use", "id": "7", "name": "Read", "input": {"file_path": "/x"}}], u7)
+lines.append(entry("user", [{"type": "tool_result", "tool_use_id": "7", "is_error": True,
+                             "content": "PreToolUse:Read hook error: x.py has 900 lines. Read the part you need with offset and limit, or grep for the symbol first; pass allow_large only if you truly need all of it."}]))
+lines += split("m8", [{"type": "text", "text": "Need all of it."},
+                      {"type": "tool_use", "id": "8", "name": "Read", "input": {"file_path": "/x", "allow_large": True}}], u7)
 with open(os.path.join(proj, "s1.jsonl"), "w") as f:
     f.write("\n".join(lines) + "\n")
 
@@ -73,7 +83,7 @@ env.pop("TOKEN_ECONOMY_ENDPOINT", None)
 # Ledger: denials need the hook's error shape; an override is the same tool rerun with #full straight after.
 out = subprocess.run([sys.executable, LEDGER, "--project", "/Users/dev/app"], env=env, capture_output=True, text=True).stdout
 row = next((l for l in out.splitlines() if l.startswith("s1")), "")
-check("ledger counts 3 denials and 1 override (only the very next call)", re.search(r"\s3\s+1\s+Secret", row) is not None)
+check("ledger counts 4 denials and 2 overrides (only the very next step)", re.search(r"\s4\s+2\s+Secret", row) is not None)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import importlib.util  # noqa: E402
 spec = importlib.util.spec_from_file_location("ledger", LEDGER)
@@ -82,7 +92,7 @@ os.environ["HOME"] = home
 spec.loader.exec_module(ledger)
 r = ledger.rollup(30)
 c = r[day]["-Users-dev-app"]
-check("rollup counts", c["steps"] == 8 and c["denials"] == 3 and c["overrides"] == 1 and c["sessions"] == 1)
+check("rollup counts split steps once", c["steps"] == 10 and c["reread"] == 14900 and c["denials"] == 4 and c["overrides"] == 2 and c["sessions"] == 1)
 
 # No endpoint: accounts are off and say so.
 p = subprocess.run([sys.executable, ACCOUNT, "login"], env=env, capture_output=True, text=True)
@@ -127,7 +137,7 @@ else:
         check("key saved with 0600", oct(os.stat(state_path).st_mode & 0o777) == "0o600" and state["api_key"].startswith("te_"))
         req = urllib.request.Request(base + "/v1/usage?days=30", headers={"Authorization": "Bearer " + state["api_key"]})
         days = json.loads(urllib.request.urlopen(req).read())["days"]
-        check("server has the counts", len(days) == 1 and days[0]["steps"] == 8 and days[0]["overrides"] == 1)
+        check("server has the counts", len(days) == 1 and days[0]["steps"] == 10 and days[0]["overrides"] == 2)
         p = subprocess.run([sys.executable, ACCOUNT, "status"], env=env, capture_output=True, text=True)
         check("status shows plan", "Plan: free" in p.stdout and "dashboard" in p.stdout)
         # What leaves the machine: counts and hashes only.

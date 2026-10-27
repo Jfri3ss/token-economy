@@ -53,6 +53,8 @@ def session(path, top=False):
     last_ctx = 0
     first_day = ""
     denied_tool = None  # tool name of a denial not yet followed by another call
+    denial_step = None  # message id of the step after that denial
+    steps_seen = set()
 
     def add(day, key, n=1):
         s[key] += n
@@ -73,14 +75,25 @@ def session(path, top=False):
             m = e.get("message") or {}
             c = m.get("content") if isinstance(m, dict) else None
             if kind == "assistant" and isinstance(c, list):
-                add(day, "steps")
-                u = m.get("usage") or {}
-                ctx = u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
-                add(day, "reread", ctx)
-                last_ctx = ctx or last_ctx
-                add(day, "out_tokens", u.get("output_tokens", 0))
-                model = m.get("model") or ""
-                models[model.split("-")[1] if "-" in model else "?"] += 1
+                # Claude Code writes one model step as several lines (thinking, text, each tool call),
+                # all carrying the same message id and usage. Count the step and its tokens once.
+                mid = m.get("id") or e.get("uuid") or f"line{len(steps_seen)}"
+                if mid not in steps_seen:
+                    steps_seen.add(mid)
+                    add(day, "steps")
+                    u = m.get("usage") or {}
+                    ctx = u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
+                    add(day, "reread", ctx)
+                    last_ctx = ctx or last_ctx
+                    add(day, "out_tokens", u.get("output_tokens", 0))
+                    model = m.get("model") or ""
+                    models[model.split("-")[1] if "-" in model else "?"] += 1
+                if denied_tool is not None:
+                    # An override has to come in the step right after the denial.
+                    if denial_step is None:
+                        denial_step = mid
+                    elif mid != denial_step:
+                        denied_tool = None
                 for b in c:
                     if isinstance(b, dict) and b.get("type") == "tool_use":
                         name, inp = b.get("name"), b.get("input") or {}
@@ -91,8 +104,6 @@ def session(path, top=False):
                             if name == denied_tool and isinstance(inp, dict) and is_override(name, inp):
                                 add(day, "overrides")
                             denied_tool = None
-                if not any(isinstance(b, dict) and b.get("type") == "tool_use" for b in c):
-                    denied_tool = None  # an override has to be the very next call
             elif kind == "user":
                 if isinstance(c, str):
                     if not title and not c.startswith("<"):
@@ -118,7 +129,7 @@ def session(path, top=False):
                             add(day, "tool_bytes", len(r))
                             if b.get("is_error") and r.startswith("PreToolUse:") and any(g in r for g in GUARD_MARKS):
                                 add(day, "denials")
-                                denied_tool = n
+                                denied_tool, denial_step = n, None
                             if top:
                                 biggest.append((len(r) / 1024, n, r[:70].replace("\n", " ")))
     return {"file": os.path.basename(path)[:8], "title": title, "first_day": first_day, "counts": s, "days": days,

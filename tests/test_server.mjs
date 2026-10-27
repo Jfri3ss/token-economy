@@ -91,6 +91,8 @@ const sent = await worker.fetch(new Request("http://local/activate", { method: "
 check("without test mode or mail keys, no link is shown", sent.status === 502 && !(await sent.text()).includes("/confirm?t="));
 
 check("delete account", (await call("DELETE", "/v1/me", undefined, auth)).status === 200);
+check("upload after delete leaves no rows", (await call("POST", "/v1/usage", { device_id, rows: [row] }, auth)).status === 401 &&
+  env.DB.raw.prepare("SELECT COUNT(*) AS n FROM usage").get().n === 0);
 let limitedHit = false;
 for (let i = 0; i < 40 && !limitedHit; i++) limitedHit = (await call("POST", "/v1/device/start", {})).status === 429;
 check("sign-in starts are rate limited", limitedHit);

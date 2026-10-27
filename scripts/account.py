@@ -193,7 +193,11 @@ def sync(state, quiet=False, days=30):
     body = payload(state, days)
     if not read_state().get("upload"):  # turned off while the ledger was reading
         return False
-    status, res = call("POST", "/v1/usage", body, key=key, timeout=30)
+    rows = body["rows"]
+    for i in range(0, max(len(rows), 1), 5000):
+        status, res = call("POST", "/v1/usage", {**body, "rows": rows[i:i + 5000]}, key=key, timeout=30)
+        if status != 200:
+            break
     if status == 200:
         merge_state(key, last_sync=time.time())
         if not quiet:
