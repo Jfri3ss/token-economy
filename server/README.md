@@ -1,6 +1,6 @@
 # Account server
 
-A Cloudflare Worker with one D1 database. It serves the landing page, device-code sign-in with an email confirmation, the daily usage upload, the dashboard, and the plan check. The plugin works without it; `DEFAULT_ENDPOINT` in `scripts/account.py` is empty until this is live.
+A Cloudflare Worker with one D1 database. It serves the landing page, device-code sign-in with an email confirmation, the daily usage upload, the dashboard, and the plan check. The plugin works without it; `DEFAULT_ENDPOINT` in `scripts/account.py` points here since 0.2.1.
 
 ## Routes
 

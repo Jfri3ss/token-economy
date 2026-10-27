@@ -78,7 +78,7 @@ with open(os.path.join(proj, "s1.jsonl"), "w") as f:
     f.write("\n".join(lines) + "\n")
 
 env = dict(os.environ, HOME=home, TOKEN_ECONOMY_CONFIG="/nonexistent/none.json")
-env.pop("TOKEN_ECONOMY_ENDPOINT", None)
+env["TOKEN_ECONOMY_ENDPOINT"] = "off"  # never reach the live server from tests
 
 # Ledger: denials need the hook's error shape; an override is the same tool rerun with #full straight after.
 out = subprocess.run([sys.executable, LEDGER, "--project", "/Users/dev/app"], env=env, capture_output=True, text=True).stdout
@@ -103,12 +103,15 @@ check("status signed out", "Not signed in" in p.stdout)
 cfg_dir = tempfile.mkdtemp()
 with open(os.path.join(cfg_dir, "token-economy.config.json"), "w") as f:
     json.dump({"account_endpoint": "https://evil.example"}, f)
-p = subprocess.run([sys.executable, ACCOUNT, "login"], env=env, cwd=cfg_dir, capture_output=True, text=True)
-check("project config can't set the endpoint", "aren't open yet" in p.stderr)
+probe = [sys.executable, "-c", f"import importlib.util as u; s = u.spec_from_file_location('a', {ACCOUNT!r}); "
+         "m = u.module_from_spec(s); s.loader.exec_module(m); print(m.endpoint() == m.DEFAULT_ENDPOINT, m.endpoint())"]
+noenv = {k: v for k, v in env.items() if k != "TOKEN_ECONOMY_ENDPOINT"}
+p = subprocess.run(probe, env=noenv, cwd=cfg_dir, capture_output=True, text=True)
+check("project config can't set the endpoint", p.stdout.startswith("True") and "evil" not in p.stdout)
 with open(os.path.join(home, ".claude", "token-economy.config.json"), "w") as f:
     json.dump({"account_endpoint": "http://evil.example"}, f)
-p = subprocess.run([sys.executable, ACCOUNT, "login"], env=env, capture_output=True, text=True)
-check("plain http to a remote host refused", "aren't open yet" in p.stderr)
+p = subprocess.run(probe, env=noenv, capture_output=True, text=True)
+check("plain http to a remote host refused", p.stdout.strip() == "False")
 os.remove(os.path.join(home, ".claude", "token-economy.config.json"))
 check("sync hook quiet when signed out", subprocess.run([sys.executable, SYNC_HOOK], input="{}", env=env, capture_output=True, text=True).stdout == "")
 
