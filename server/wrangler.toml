@@ -10,6 +10,7 @@ binding = "DB"
 database_name = "token-economy"
 database_id = "9b8a2f6a-a9fb-48db-9284-99949973a34d"
 
-# Sign-in emails need both, and sign-in stays off until they're set:
-#   [vars] MAIL_FROM = "token-economy <signin@your-verified-resend-domain>"
+# Sign-in emails go out through Resend from a verified domain. The key is a secret:
 #   npx wrangler secret put RESEND_API_KEY
+[vars]
+MAIL_FROM = "token-economy <signin@getpavo.app>"
