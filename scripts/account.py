@@ -29,9 +29,8 @@ import webbrowser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-VERSION = "0.2.0"
-# Set at release once the account server is live; until then accounts are off unless configured.
-DEFAULT_ENDPOINT = ""
+VERSION = "0.2.1"
+DEFAULT_ENDPOINT = "https://token-economy-accounts.friesjeremiah.workers.dev"
 STATE = os.path.expanduser("~/.claude/token-economy/account.json")
 HOME_CONFIG = os.path.expanduser("~/.claude/token-economy.config.json")
 
@@ -39,6 +38,8 @@ HOME_CONFIG = os.path.expanduser("~/.claude/token-economy.config.json")
 def endpoint():
     """The env var, then the home config only: a project's config file can't redirect your key."""
     url = os.environ.get("TOKEN_ECONOMY_ENDPOINT") or ""
+    if url == "off":  # accounts off on this machine (and in tests)
+        return ""
     if not url:
         try:
             with open(HOME_CONFIG, encoding="utf-8") as f:

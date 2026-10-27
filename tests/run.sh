@@ -3,6 +3,7 @@
 set -e
 cd "$(dirname "$0")/.."
 export TOKEN_ECONOMY_CONFIG=/nonexistent/none.json  # tests that need a config set their own
+export TOKEN_ECONOMY_ENDPOINT=off  # never reach the live account server
 for t in tests/test_*.py; do python3 "$t" | tail -1 | grep -q "failed: 0" || { echo "FAIL $t"; python3 "$t" | grep FAIL; exit 1; }; echo "ok $t"; done
 # Unconfigured hooks must print nothing and exit 0 on ordinary events.
 for h in hooks/*-hook.py; do
