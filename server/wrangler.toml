@@ -1,0 +1,14 @@
+name = "token-economy-accounts"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+
+# Create the database with `npx wrangler d1 create token-economy`, paste its id here,
+# then `npx wrangler d1 execute token-economy --remote --file schema.sql`.
+[[d1_databases]]
+binding = "DB"
+database_name = "token-economy"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+MAIL_FROM = "token-economy <signin@REPLACE_WITH_SENDING_DOMAIN>"
+# RESEND_API_KEY is a secret: `npx wrangler secret put RESEND_API_KEY`.

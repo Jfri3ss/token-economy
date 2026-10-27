@@ -13,3 +13,10 @@ for h in hooks/*-hook.py; do
   echo "ok $h quiet when unconfigured"
 done
 python3 -m py_compile hooks/*.py scripts/*.py && echo "ok compile"
+# Account server (needs Node 22.5+ for node:sqlite).
+if command -v node >/dev/null 2>&1; then
+  node tests/test_server.mjs | tail -1 | grep -q "failed: 0" || { echo "FAIL tests/test_server.mjs"; node tests/test_server.mjs | grep FAIL; exit 1; }
+  echo "ok tests/test_server.mjs"
+else
+  echo "skip tests/test_server.mjs (no node)"
+fi

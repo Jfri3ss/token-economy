@@ -13,5 +13,6 @@
   "hard_words": ["payment", "payout", "stripe", "billing"],
   "note_paths": ["\\.(md|txt|markdown|rst)$", "/docs?/", "/reports?/"],
   "max_lines": 300,
-  "check_model": "sonnet"
+  "check_model": "sonnet",
+  "account_endpoint": ""
 }
