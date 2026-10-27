@@ -32,7 +32,7 @@ Uses `node:sqlite` in memory (Node 22.5+) and shows confirm links on the page in
 
 ## Live
 
-Deployed 2026-10-27 as `token-economy-accounts` at https://token-economy-accounts.friesjeremiah.workers.dev (D1 `token-economy`). Sign-in email isn't set up yet, so sign-in stops at the email step.
+Deployed 2026-10-27 as `token-economy-accounts` at https://token-economy-accounts.friesjeremiah.workers.dev (D1 `token-economy`). Sign-in emails come from signin@getpavo.app (verified in Resend) once `RESEND_API_KEY` is set as a Worker secret; until then sign-in stops at the email step.
 
 ## Deploy (owner)
 
