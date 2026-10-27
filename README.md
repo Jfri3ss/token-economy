@@ -49,7 +49,8 @@ python3 "$(ls -d ~/.claude/plugins/cache/emmber/token-economy/*/ | tail -1)scrip
 - **Model router.** Classifies every prompt as a question, a read, a routine edit, a build or a hard task, and tells the session where the heavy part should run. A top model spends its limit on judgment; Sonnet and Haiku do the reading, testing and typing. It also refuses an Agent call whose model doesn't fit its brief.
 - **Output guard.** Refuses the few command shapes that dump thousands of lines into the context (whole-file reads, bare `git diff`, untailed test runs, long listings) and names the smaller form. Add `#full` to any command to run it as written.
 - **Sized end-of-turn check.** A Stop hook that asks the session to check its own work, sized to what changed: nothing for a doc edit, a Sonnet subagent for code, the full check in the main session for a deploy.
-- **Token ledger.** Reads your session transcripts and shows steps, tokens re-read, context size, check runs and guard denials per session.
+- **Token ledger.** Reads your session transcripts and shows steps, tokens re-read, context size, check runs, guard denials and overrides per session. `--compare YYYY-MM-DD` shows before and after a date, per step.
+- **Optional free account.** `scripts/account.py login` gives you a dashboard of your usage over time, across machines. Uploads are off until you turn them on, and only daily counts are sent: see [PRIVACY.md](PRIVACY.md). The plugin works the same without it.
 
 ## Why it works
 
@@ -76,6 +77,7 @@ Optional. Without a config the hooks use defaults and the check's facts script r
 | `note_paths` | Regex fragments for paths whose edits are notes, not code. No check for those. |
 | `max_lines` | Longest file the guard lets through whole. Default 300. |
 | `check_model` | Model for the subagent that runs local and shipped checks. Default `sonnet`. |
+| `account_endpoint` | Account server URL for `scripts/account.py`. Read only from `~/.claude/token-economy.config.json` (or `$TOKEN_ECONOMY_ENDPOINT`), never a project's file; https only. Leave empty for the default. |
 
 ## How the router works
 

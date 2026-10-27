@@ -139,7 +139,30 @@ def is_change(name, inp):
 
 
 def is_check(name, inp):
-    return name == "Skill" and inp.get("skill", "").split(":")[-1] == SKILL
+    """The skill run here, or a subagent launched with the check brief (it names the skill's SKILL.md)."""
+    if name == "Skill":
+        return inp.get("skill", "").split(":")[-1] == SKILL
+    return name in ("Agent", "Task") and f"{SKILL}/SKILL.md" in str(inp.get("prompt", ""))
+
+
+def agent_report(content, agent_ids):
+    """True when a user entry carries a check report from a subagent: the result of an Agent call,
+    or a relayed agent message. Other tool results (a file that quotes the report line) don't count."""
+    if isinstance(content, str):
+        return "<agent-message" in content and bool(REPORTED.search(content))
+    if not isinstance(content, list):
+        return False
+    for b in content:
+        if not isinstance(b, dict):
+            continue
+        if b.get("type") == "tool_result" and b.get("tool_use_id") in agent_ids:
+            inner = b.get("content")
+            text = inner if isinstance(inner, str) else json.dumps(inner)
+            if REPORTED.search(text.replace("\\n", "\n")):
+                return True
+        elif b.get("type") == "text" and agent_report(b.get("text", ""), agent_ids):
+            return True
+    return False
 
 
 def user_text(content):
@@ -154,10 +177,12 @@ def user_text(content):
 def scan(transcript_path):
     """Return (changes since the last check, latest owner text).
 
-    A check is the Skill tool call, or a reply holding the check's report line.
+    A check is the Skill tool call, a check subagent's launch, or the check's report line in a
+    reply, a tool result or a relayed agent message.
     """
     changes = []
     last_user = ""
+    agent_ids = set()
     with open(transcript_path, encoding="utf-8") as f:
         for line in f:
             try:
@@ -168,6 +193,8 @@ def scan(transcript_path):
             msg = entry.get("message") or {}
             content = msg.get("content")
             if kind == "user":
+                if agent_report(content, agent_ids):
+                    changes = []
                 text = user_text(content)
                 if text and not text.lstrip().startswith("<system-reminder>"):
                     last_user = text
@@ -181,6 +208,8 @@ def scan(transcript_path):
                         changes = []
                     elif block.get("type") == "tool_use":
                         name, inp = block.get("name", ""), block.get("input") or {}
+                        if name in ("Agent", "Task"):
+                            agent_ids.add(block.get("id"))
                         if is_check(name, inp):
                             changes = []
                         else:

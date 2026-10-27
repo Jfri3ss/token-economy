@@ -23,6 +23,9 @@ DEFAULTS = {
     "max_lines": 300,
     # Model for the subagent that runs local and shipped checks.
     "check_model": "sonnet",
+    # Account server for the optional account. scripts/account.py reads it only from
+    # ~/.claude/token-economy.config.json, never a project's file. Empty = the default.
+    "account_endpoint": "",
 }
 NAME = "token-economy.config.json"
 

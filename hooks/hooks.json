@@ -1,6 +1,9 @@
 {
-  "description": "token-economy: model router, output guard, sized end-of-turn check.",
+  "description": "token-economy: model router, output guard, sized end-of-turn check, optional account sync.",
   "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/account-sync-hook.py\"", "timeout": 5 } ] }
+    ],
     "UserPromptSubmit": [
       { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/model-router-hook.py\"", "timeout": 10 } ] }
     ],
