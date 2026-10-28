@@ -31,7 +31,7 @@ Routing: read-only task. Delegate the reading to ONE Agent on haiku with a narro
 and relay its answer. Do not read the files in this context.
 ```
 
-A command that would flood the context gets refused with the smaller form to use instead:
+A command that would flood the context gets refused with the smaller form to use instead. A plain `git log` or listing inside the project is trimmed for you instead (`-n 20`, `| head -50`), which saves the extra round trip:
 
 ```text
 git diff with no path can be thousands of lines. Run it with --stat first,

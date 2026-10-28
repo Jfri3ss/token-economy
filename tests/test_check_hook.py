@@ -67,6 +67,10 @@ CASES = [
         user([{"type": "tool_result", "tool_use_id": "rd1", "content": "text('**Check: clean**')"}])], "local"),
     ("report in relayed agent message -> no block", [user("fix"), tool("Edit", {"file_path": "/x/a.php"}),
         user("<agent-message>\n  **Check: clean**\n  - Changed: a.php\n</agent-message>")], None),
+    ("not needed line -> no block", [user("fix"), tool("Edit", {"file_path": "/x/a.php"}),
+        text("**Check: not needed** - the check ran earlier this turn.")], None),
+    ("change after not needed -> local", [user("fix"), tool("Edit", {"file_path": "/x/a.php"}),
+        text("**Check: not needed**"), tool("Edit", {"file_path": "/x/b.js"})], "local"),
     ("scratch-only bash -> no block", [user("x"), tool("Bash", {"command": "echo hi > /private/tmp/claude-501/s/out.txt"})], None),
 ]
 
@@ -82,5 +86,19 @@ for name, lines, want in CASES:
     ok = got == want
     failed += not ok
     print(("PASS" if ok else "FAIL"), name, "->", got)
+# Facts cover only the repos the changes touch; a change with no repo path means all of them.
+import importlib.util
+cfg = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+json.dump({"repos": {"app": "/r/app", "server": "/r/server"}}, cfg); cfg.close()
+os.environ["TOKEN_ECONOMY_CONFIG"] = cfg.name
+spec = importlib.util.spec_from_file_location("check", HOOK); h = importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
+for name, changes, want in (
+        ("one repo", [("local", "Edit /r/app/a.js")], ["app"]),
+        ("two repos", [("local", "Edit /r/app/a.js"), ("local", "Bash sed -i x /r/server/b.php")], ["app", "server"]),
+        ("prefix is not a repo", [("local", "Edit /r/application/a.js")], []),
+        ("commit with no path", [("local", "Edit /r/app/a.js"), ("shipped", "Bash git commit -m 'x.'")], [])):
+    got = h.touched_repos(changes); ok = got == want; failed += not ok
+    print(("PASS" if ok else "FAIL"), "facts repos:", name, "->", got)
+os.unlink(cfg.name)
 print("failed:", failed)
 sys.exit(1 if failed else 0)

@@ -10,7 +10,7 @@ Where each kind of work runs, so the top model spends its limit on judgment and 
 | Read-only | find, where, list, search, summarize, review, audit, how many | delegates and relays | delegates and relays | haiku (sonnet to weigh evidence) |
 | Routine edit | fix/update + typo, wording, doc, comment, bump, label, .md | one sonnet Agent edits; main checks the diff by path | edits directly | sonnet |
 | Build | add, implement, create, refactor (no hard signal) | designs and edits here; wide reads and suites go out | edits here; wide reads go out | haiku for reads |
-| Hard | auth, security, schema, migration, deploy, production, design, refactor, debug, crash, failing, legal, plus your `hard_words` | does it here; reads and tests go out | runs the design or diagnosis in one top-model Agent, implements here | top model for the thinking, sonnet/haiku for the rest |
+| Hard | auth, security, schema, migration, deploy, production, design, refactor, debug, crash, failing, legal, plus your `hard_words` (a question counts only when it asks why something fails, or names one of your `hard_words`) | does it here; reads and tests go out | runs the design or diagnosis in one top-model Agent, implements here | top model for the thinking, sonnet/haiku for the rest |
 
 Checks: the end-of-turn check runs in an Agent on `check_model` (default sonnet) for local and shipped changes, in the main session for deploys (`hooks/check-your-work-hook.py`).
 

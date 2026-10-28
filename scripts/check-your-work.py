@@ -77,9 +77,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--prod", action="store_true", help="also read production over SSH")
     ap.add_argument("--log-lines", type=int, default=15)
+    ap.add_argument("--repos", default="", help="comma-separated repo names to report (default: all)")
     args = ap.parse_args()
+    wanted = {r for r in args.repos.split(",") if r} & set(REPOS)
     for name, path in REPOS.items():
-        repo_facts(name, path)
+        if not wanted or name in wanted:
+            repo_facts(name, path)
     if args.prod:
         prod_facts(args.log_lines)
 

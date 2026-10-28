@@ -12,6 +12,12 @@ command shapes that produce that kind of output and names the smaller form:
   test, lint, type-check or build runs with no tail/grep   -> 2>&1 | tail -40
   find / ls -R / tree with no head                         -> | head -50
 
+A bare git log or listing that is one simple read-only command on relative paths is
+rewritten instead of refused (-n 20 / | head -50 added, with a note saying so), which saves
+the extra round trip a refusal costs. The rewrite has to be returned with "allow", which
+skips the permission prompt, so it is limited to commands that only read inside the
+working directory; test and build runs execute code and are still refused.
+
 Escape hatch: put "#full" anywhere in the command, or pass allow_large to Read.
 Each reason ends with [guard rule: <id>] so the ledger's --rules table can tell which
 rules get overridden most.
@@ -44,6 +50,18 @@ def deny(reason, rule):
                                    "permissionDecisionReason": f"{reason} [guard rule: {rule}]"}}
 
 
+def rewrite(inp, command, note, rule):
+    # The [guard rewrite: ...] tag marks it in the transcript, like the deny tag.
+    return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
+                                   "permissionDecisionReason": f"{note} [guard rewrite: {rule}]",
+                                   "updatedInput": dict(inp, command=command),
+                                   "additionalContext": f"{note} [guard rewrite: {rule}]"}}
+
+
+# One simple command: no chaining, pipes, redirects, substitutions or absolute, home or parent paths.
+UNSAFE_FOR_REWRITE = re.compile(r"[;&|<>`$\n]|(^|\s)[\"']?(/|~)|\.\.")
+
+
 def count_lines(path, cwd):
     path = os.path.expanduser(path)
     if not os.path.isabs(path):
@@ -70,7 +88,7 @@ def check_read(inp):
     return None
 
 
-def check_bash(cmd, cwd):
+def check_bash(cmd, cwd, inp=None):
     if "#full" in cmd:
         return None
     first = cmd.strip()
@@ -109,12 +127,20 @@ def check_bash(cmd, cwd):
                 limited = any(re.match(r"^-\d+$|^-n$|^--max-count|^-n\d+$|^--since|^--after|^-L", t) or ".." in t
                               for t in toks) or "--oneline" in toks
                 if not limited:
+                    if inp is not None and not UNSAFE_FOR_REWRITE.search(cmd.strip()):
+                        new = re.sub(r"\blog\b", "log -n 20", cmd.strip(), count=1)
+                        return rewrite(inp, new, "git log had no count, so -n 20 was added; "
+                                       "ask for more with -n or a range, or add #full.", "git-log")
                     return deny("git log without a count prints the whole history. Add -n 20 (and --oneline).", "git-log")
         if TEST_CMDS.search(seg) and not TRIM.search(seg):
             return deny("Test, lint, type-check and build output is long and stays in context. Append "
                         "`2>&1 | tail -40` (or grep for FAIL/error), or add #full.", "test-output")
         if (re.match(r"^(find\s|ls\s+-[a-zA-Z]*R|tree\b)", seg) and not TRIM.search(seg)
                 and not re.search(r"-maxdepth\s+[12]\b|-exec\b|-delete\b|-L\s*[12]\b", seg)):
+            if (inp is not None and seg == bare.strip() and not UNSAFE_FOR_REWRITE.search(cmd.strip())
+                    and not re.search(r"-(exec|execdir|ok|delete|fprint\w*|fls)\b", cmd)):
+                return rewrite(inp, cmd.strip() + " | head -50", "The listing was piped through head -50; "
+                               "narrow it or add #full to see everything.", "listing")
             return deny("That listing can be very long. Pipe it through | head -50 or narrow it, or add #full.", "listing")
     return None
 
@@ -127,7 +153,7 @@ def main():
         if name == "Read":
             out = check_read(inp)
         elif name == "Bash":
-            out = check_bash(inp.get("command", ""), data.get("cwd"))
+            out = check_bash(inp.get("command", ""), data.get("cwd"), inp)
     except Exception:
         out = None
     if out:

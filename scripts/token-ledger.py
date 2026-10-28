@@ -130,7 +130,10 @@ def session(path, top=False):
                         name, inp = b.get("name"), b.get("input") or {}
                         ids[b.get("id")] = name
                         call_step[b.get("id")] = mid
-                        if name == "Skill" and "check-your-work" in str(inp):
+                        # The skill run here, or (since 0.2.0, the usual case) a check subagent whose
+                        # brief names the skill's SKILL.md.
+                        if ((name == "Skill" and "check-your-work" in str(inp))
+                                or (name in ("Agent", "Task") and "check-your-work/SKILL.md" in str(inp.get("prompt", "")))):
                             add(day, "checks")
                         if denied_tool is not None and mid != denied_mid:
                             if name == denied_tool and isinstance(inp, dict) and is_override(name, inp):
@@ -327,7 +330,7 @@ def main():
     print(f"{'total':8} {'':10} {'':7} {tot['steps']:5d} {tot['reread'] / 1e6:9.1f} {tot['out_tokens'] / 1e3:6.0f} {'':6} "
           f"{tot['tool_bytes'] / 1024:7.0f} {tot['blocks']:3d} {tot['checks']:3d} {tot['denials']:3d} {tot['overrides']:3d}")
     print("\nreread M = million context tokens re-sent across all steps (the real cost); ctx K = context size at the end;"
-          "\nblk = check-hook blocks, chk = check skill runs, den = output-guard denials,"
+          "\nblk = check-hook blocks, chk = check runs (skill or check subagent), den = output-guard denials,"
           "\novr = denials rerun as written with #full or allow_large (a likely false positive).")
 
 
