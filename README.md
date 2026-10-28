@@ -95,7 +95,7 @@ The saving depends on picking a cheaper session model for everyday work and lett
 
 ## The guard's rules and the override
 
-Read of a file over `max_lines` with no range; `cat` of such a file with no pipe; `git diff` or `git show` with no path, ref or `--stat`; `git log` with no count, range or `--since`; test, lint, type-check and build runs with no `| tail`, `| grep` or redirect; `find`, `ls -R` and `tree` with no `| head` (shallow or `-exec` finds pass). Each denial names the smaller form. Put `#full` anywhere in a command to run it as written; pass `allow_large` to Read.
+Read of a file over `max_lines` with no range; `cat` of such a file with no pipe; `git diff` or `git show` with no path, ref or `--stat`; `git log` with no count, range or `--since`; test, lint, type-check and build runs with no `| tail`, `| grep` or redirect; `find`, `ls -R` and `tree` with no `| head` (shallow or `-exec` finds pass). Each denial names the smaller form. Put `#full` anywhere in a command to run it as written; pass `allow_large` to Read. Each denial ends with `[guard rule: <id>]` (`read-large`, `cat-large`, `git-diff`, `git-show`, `git-log`, `test-output`, `listing`) so the ledger can count it per rule.
 
 ## The check
 
@@ -116,9 +116,12 @@ The brief carries the change list and the facts script's output, so no steps go 
 python3 scripts/token-ledger.py --last 8          # this project
 python3 scripts/token-ledger.py --project ~/other  # another project
 python3 scripts/token-ledger.py --top              # the largest tool results
+python3 scripts/token-ledger.py --rules --days 14  # which guard rules pay for themselves
 ```
 
-Columns: steps, million context tokens re-read across all steps (the real cost), output tokens, context size at the end, tool-result KB, check-hook blocks, check runs, guard denials, routing tiers.
+`--rules` gives one row per guard rule. Every denial forces one more model step, and that step re-sends the whole context; that is the rule's cost. A retry that complied keeps the difference between the full output and the smaller output out of every later step; that is the saving, sized from the same rule's overrides (at least two are needed). A rule that is mostly overridden, or whose cost is more than its saving, is marked `review`: loosen it or turn it off.
+
+Columns: steps, million context tokens re-read across all steps (the real cost), output tokens, context size at the end, tool-result KB, check-hook blocks, check runs, guard denials, overrides (a denial rerun as written with `#full` or `allow_large` in the very next step), routing tiers.
 
 ## Caveats
 

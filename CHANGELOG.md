@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 (2026-10-28)
+
+Ledger `--rules`: denials, overrides, the cost of the extra round trip and an estimate of what the smaller retries saved, per guard rule, with a verdict that marks rules to loosen or drop. The guard now ends each denial with `[guard rule: <id>]`; older denials are matched by their wording. Fixed: when the denied call was one of several in a step, its sibling calls were taken for the retry, so some overrides were missed.
+
 ## 0.2.1 (2026-10-27)
 
 Accounts are on: `scripts/account.py login` signs in against the live account server, and sign-in emails come from signin@getpavo.app. Uploads stay off until you turn them on.
