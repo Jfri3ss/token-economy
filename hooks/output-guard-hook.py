@@ -13,6 +13,8 @@ command shapes that produce that kind of output and names the smaller form:
   find / ls -R / tree with no head                         -> | head -50
 
 Escape hatch: put "#full" anywhere in the command, or pass allow_large to Read.
+Each reason ends with [guard rule: <id>] so the ledger's --rules table can tell which
+rules get overridden most.
 Never fails the session: any error lets the call through.
 """
 import json
@@ -36,9 +38,10 @@ HEREDOC = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?[^\n]*\n.*?\n\1\s*(?=\n|$)", re.S
 TRIM = re.compile(r"\|\s*(tail|head|grep|wc|sed|awk|rg|xcpretty|xcbeautify|jq|sort|uniq|cut|python3)\b|\s>\s*\S|\s2>&1\s*>\s*\S")
 
 
-def deny(reason):
+def deny(reason, rule):
+    # The [guard rule: ...] tag lets the ledger count denials and overrides per rule.
     return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                                   "permissionDecisionReason": reason}}
+                                   "permissionDecisionReason": f"{reason} [guard rule: {rule}]"}}
 
 
 def count_lines(path, cwd):
@@ -63,7 +66,7 @@ def check_read(inp):
     n = count_lines(path, None)
     if n and n > MAX_LINES:
         return deny(f"{os.path.basename(path)} has {n} lines. Read the part you need with offset and "
-                    f"limit, or grep for the symbol first; pass allow_large only if you truly need all of it.")
+                    f"limit, or grep for the symbol first; pass allow_large only if you truly need all of it.", "read-large")
     return None
 
 
@@ -77,7 +80,7 @@ def check_bash(cmd, cwd):
         n = count_lines(m.group(1).strip("'\""), cwd)
         if n and n > MAX_LINES:
             return deny(f"That file has {n} lines. Read a range (sed -n 'a,bp'), grep for what you need, "
-                        f"or add #full if the whole file is really needed.")
+                        f"or add #full if the whole file is really needed.", "cat-large")
     # Each simple command in the line, with heredoc bodies and quoted text removed first so
     # words inside a commit message or a grep pattern never count as commands.
     bare = QUOTED.sub('""', HEREDOC.sub("<<HEREDOC", cmd))
@@ -98,21 +101,21 @@ def check_bash(cmd, cwd):
                 has_path = any(not t.startswith("-") and t != '""' for t in toks)
                 if not has_stat and not has_path and sub == "diff":
                     return deny("git diff with no path can be thousands of lines. Run it with --stat first, "
-                                "then diff the paths you need (git diff -- path), or add #full.")
+                                "then diff the paths you need (git diff -- path), or add #full.", "git-diff")
                 if not has_stat and not has_path and sub == "show" and not any(t.startswith("-") for t in toks):
                     return deny("git show of a whole commit can be huge. Use git show --stat <commit> first, "
-                                "then show -- path, or add #full.")
+                                "then show -- path, or add #full.", "git-show")
             if sub == "log":
                 limited = any(re.match(r"^-\d+$|^-n$|^--max-count|^-n\d+$|^--since|^--after|^-L", t) or ".." in t
                               for t in toks) or "--oneline" in toks
                 if not limited:
-                    return deny("git log without a count prints the whole history. Add -n 20 (and --oneline).")
+                    return deny("git log without a count prints the whole history. Add -n 20 (and --oneline).", "git-log")
         if TEST_CMDS.search(seg) and not TRIM.search(seg):
             return deny("Test, lint, type-check and build output is long and stays in context. Append "
-                        "`2>&1 | tail -40` (or grep for FAIL/error), or add #full.")
+                        "`2>&1 | tail -40` (or grep for FAIL/error), or add #full.", "test-output")
         if (re.match(r"^(find\s|ls\s+-[a-zA-Z]*R|tree\b)", seg) and not TRIM.search(seg)
                 and not re.search(r"-maxdepth\s+[12]\b|-exec\b|-delete\b|-L\s*[12]\b", seg)):
-            return deny("That listing can be very long. Pipe it through | head -50 or narrow it, or add #full.")
+            return deny("That listing can be very long. Pipe it through | head -50 or narrow it, or add #full.", "listing")
     return None
 
 

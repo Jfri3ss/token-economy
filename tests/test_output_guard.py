@@ -50,5 +50,12 @@ failed = 0
 for name, tool, inp, want in CASES:
     got = run(tool, inp); ok = got == want; failed += not ok
     print("PASS" if ok else "FAIL", name)
+# Each denial names its rule so the ledger can count overrides per rule.
+for tool, inp, rule in (("Read", {"file_path": big.name}, "read-large"), ("Bash", {"command": "git diff"}, "git-diff"),
+                        ("Bash", {"command": "find ."}, "listing")):
+    out = subprocess.run([sys.executable, HOOK], input=json.dumps({"tool_name": tool, "tool_input": inp, "cwd": "/"}),
+                         capture_output=True, text=True).stdout
+    ok = f"[guard rule: {rule}]" in out; failed += not ok
+    print("PASS" if ok else "FAIL", f"denial tagged {rule}")
 os.unlink(big.name); os.unlink(small.name)
 print("failed:", failed); sys.exit(1 if failed else 0)

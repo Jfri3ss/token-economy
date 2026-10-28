@@ -1,6 +1,6 @@
 {
   "name": "token-economy",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Cut Claude Code token spend without cutting corners: route each task to the cheapest model that can do it well, keep huge tool output out of the context, size the end-of-turn check to the change, and see where your tokens went.",
   "author": {
     "name": "Emmber, Inc."

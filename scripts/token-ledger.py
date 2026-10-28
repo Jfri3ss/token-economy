@@ -3,6 +3,7 @@
 
     python3 scripts/token-ledger.py [--last N] [--days D] [--top] [--project DIR]
     python3 scripts/token-ledger.py --compare YYYY-MM-DD [--days D] [--project DIR]
+    python3 scripts/token-ledger.py --rules [--days D] [--last N] [--project DIR]
 
 Reads the transcripts Claude Code keeps under ~/.claude/projects/ for the
 project (default: $CLAUDE_PROJECT_DIR or the current directory).
@@ -15,6 +16,11 @@ with #full or allow_large), routing tiers. --top lists the largest tool results.
 --compare splits the sessions at a date (say, the day you installed the plugin)
 and prints per-session medians before and after, as rates per step, so a week of
 long sessions doesn't look worse than a week of short ones just for its size.
+
+--rules prints one row per guard rule: denials, overrides, the context re-sent
+by the extra round trip each denial forces, and an estimate of what the smaller
+retries saved. A rule whose round trips cost more than its retries save, or that
+is mostly overridden, is one to loosen or drop.
 """
 import argparse
 import collections
@@ -28,6 +34,13 @@ import time
 # Text that only the output guard's deny reasons contain.
 GUARD_MARKS = ("or add #full", "pass allow_large only if", "prints the whole history")
 CHECK_BLOCK = "changed something since its last check"
+# Older guard versions had no [guard rule: id] tag; these phrases identify their rules.
+RULE_TAG = re.compile(r"\[guard rule: ([\w-]+)\]")
+RULE_PHRASES = (("lines. Read the part you need", "read-large"), ("That file has", "cat-large"),
+                ("git diff with no path", "git-diff"), ("git show of a whole commit", "git-show"),
+                ("git log without a count", "git-log"), ("Test, lint, type-check", "test-output"),
+                ("That listing can be very long", "listing"))
+BYTES_PER_TOKEN = 4  # rough average for code and command output
 COUNTS = ("steps", "reread", "out_tokens", "tool_bytes", "blocks", "checks", "denials", "overrides")
 
 
@@ -35,6 +48,17 @@ def project_transcripts(project_dir):
     """Claude Code names a project's transcript folder after its path, non-alphanumerics replaced by '-'."""
     encoded = re.sub(r"[^A-Za-z0-9]", "-", os.path.abspath(os.path.expanduser(project_dir)))
     return os.path.expanduser(os.path.join("~/.claude/projects", encoded))
+
+
+def guard_rule(reason):
+    m = RULE_TAG.search(reason)
+    if m:
+        return m.group(1)
+    return next((rule for phrase, rule in RULE_PHRASES if phrase in reason), "other")
+
+
+def new_rule():
+    return {"denials": 0, "overrides": 0, "retry_ctx": 0, "full_bytes": 0, "full_n": 0, "retries": []}
 
 
 def is_override(name, inp):
@@ -54,6 +78,11 @@ def session(path, top=False):
     first_day = ""
     denied_tool = None  # tool name of a denial not yet followed by another call
     denial_step = None  # message id of the step after that denial
+    denied_rule = None  # guard rule of that denial
+    denied_mid = None  # step that made the denied call; its sibling calls are not a retry
+    call_step = {}  # tool_use id -> message id of the step that made it
+    follow = {}  # tool_use id of the call right after a denial -> (rule, "full" or "retry", step number)
+    rules = collections.defaultdict(new_rule)
     steps_seen = set()
 
     def add(day, key, n=1):
@@ -78,6 +107,7 @@ def session(path, top=False):
                 # Claude Code writes one model step as several lines (thinking, text, each tool call),
                 # all carrying the same message id and usage. Count the step and its tokens once.
                 mid = m.get("id") or e.get("uuid") or f"line{len(steps_seen)}"
+                ctx = 0
                 if mid not in steps_seen:
                     steps_seen.add(mid)
                     add(day, "steps")
@@ -88,21 +118,27 @@ def session(path, top=False):
                     add(day, "out_tokens", u.get("output_tokens", 0))
                     model = m.get("model") or ""
                     models[model.split("-")[1] if "-" in model else "?"] += 1
-                if denied_tool is not None:
+                if denied_tool is not None and mid != denied_mid:
                     # An override has to come in the step right after the denial.
                     if denial_step is None:
                         denial_step = mid
+                        rules[denied_rule]["retry_ctx"] += ctx  # the extra round trip the denial forced
                     elif mid != denial_step:
                         denied_tool = None
                 for b in c:
                     if isinstance(b, dict) and b.get("type") == "tool_use":
                         name, inp = b.get("name"), b.get("input") or {}
                         ids[b.get("id")] = name
+                        call_step[b.get("id")] = mid
                         if name == "Skill" and "check-your-work" in str(inp):
                             add(day, "checks")
-                        if denied_tool is not None:
+                        if denied_tool is not None and mid != denied_mid:
                             if name == denied_tool and isinstance(inp, dict) and is_override(name, inp):
                                 add(day, "overrides")
+                                rules[denied_rule]["overrides"] += 1
+                                follow[b.get("id")] = (denied_rule, "full", len(steps_seen))
+                            else:
+                                follow[b.get("id")] = (denied_rule, "retry", len(steps_seen))
                             denied_tool = None
             elif kind == "user":
                 if isinstance(c, str):
@@ -127,12 +163,23 @@ def session(path, top=False):
                             r = r if isinstance(r, str) else json.dumps(r)
                             n = ids.get(b.get("tool_use_id"), "?")
                             add(day, "tool_bytes", len(r))
+                            if b.get("tool_use_id") in follow:
+                                rule, how, step = follow.pop(b.get("tool_use_id"))
+                                if how == "full":
+                                    rules[rule]["full_bytes"] += len(r)
+                                    rules[rule]["full_n"] += 1
+                                else:
+                                    rules[rule]["retries"].append((len(r), step))
                             if b.get("is_error") and r.startswith("PreToolUse:") and any(g in r for g in GUARD_MARKS):
                                 add(day, "denials")
-                                denied_tool, denial_step = n, None
+                                denied_tool, denial_step, denied_rule = n, None, guard_rule(r)
+                                denied_mid = call_step.get(b.get("tool_use_id"))
+                                rules[denied_rule]["denials"] += 1
                             if top:
                                 biggest.append((len(r) / 1024, n, r[:70].replace("\n", " ")))
-    return {"file": os.path.basename(path)[:8], "title": title, "first_day": first_day, "counts": s, "days": days,
+    for rule in rules.values():  # step number -> steps still to come, each of which re-sends the result
+        rule["retries"] = [(size, len(steps_seen) - step) for size, step in rule["retries"]]
+    return {"file": os.path.basename(path)[:8], "rules": dict(rules), "title": title, "first_day": first_day, "counts": s, "days": days,
             "ctx_k": last_ctx / 1e3, "tiers": tiers, "models": models,
             "biggest": sorted(biggest, reverse=True)[:8], "mtime": os.path.getmtime(path)}
 
@@ -191,12 +238,59 @@ def compare(rows, split):
           "\nweeks of similar work.")
 
 
+def rule_table(rows):
+    """Per guard rule, over the given sessions: what its denials cost and what they saved.
+
+    Cost: every denial forces one more model step, which re-sends the whole context.
+    Saving: a retry that complied left (full size - retry size) out of every later step. The full
+    size is unknown for those, so it is estimated from the same rule's overrides, which ran in full.
+    """
+    agg = collections.defaultdict(new_rule)
+    for r in rows:
+        for rule, d in r["rules"].items():
+            a = agg[rule]
+            for k in ("denials", "overrides", "retry_ctx", "full_bytes", "full_n"):
+                a[k] += d[k]
+            a["retries"] += d["retries"]
+    if not agg:
+        print("No guard denials in these sessions.")
+        return
+    print(f"{'rule':12} {'den':>4} {'ovr':>4} {'ovr %':>5} {'cost M':>7} {'full KB':>7} {'retry KB':>8} {'saved M':>7}  verdict")
+    for rule, a in sorted(agg.items(), key=lambda kv: -kv[1]["denials"]):
+        cost = a["retry_ctx"] / 1e6
+        rate = a["overrides"] / a["denials"] * 100 if a["denials"] else 0
+        full = a["full_bytes"] / a["full_n"] if a["full_n"] else None
+        retry_kb = statistics.mean([s for s, _ in a["retries"]]) / 1024 if a["retries"] else 0
+        saved = None
+        if a["full_n"] >= 2:  # one override is too thin to size a rule by
+            saved = sum(max(full - size, 0) / BYTES_PER_TOKEN * later for size, later in a["retries"]) / 1e6
+        if a["denials"] < 3:
+            verdict = "too few to judge"
+        elif rate >= 50:
+            verdict = "review: mostly overridden"
+        elif saved is None:
+            verdict = "too few overrides to size"
+        elif saved < cost:
+            verdict = "review: costs more than it saves"
+        else:
+            verdict = "pays for itself"
+        print(f"{rule:12} {a['denials']:4d} {a['overrides']:4d} {rate:5.0f} {cost:7.2f} "
+              f"{full / 1024 if full is not None else 0:7.0f} {retry_kb:8.1f} "
+              f"{saved if saved is not None else 0:7.2f}  {verdict}")
+    print("\ncost M = million context tokens re-sent by the extra step each denial forced;"
+          "\nfull KB = average output when the rule was overridden (#full or allow_large);"
+          "\nretry KB = average output of the smaller call made instead; saved M = estimated million tokens"
+          "\nkept out of later steps by those retries, sized from the overrides (0 with fewer than two)."
+          "\nThe estimate assumes overridden calls are typical of the rule; treat it as a pointer, not a measure.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--last", type=int, default=8)
     ap.add_argument("--days", type=float, default=None)
     ap.add_argument("--top", action="store_true")
     ap.add_argument("--compare", metavar="YYYY-MM-DD", default=None)
+    ap.add_argument("--rules", action="store_true")
     ap.add_argument("--project", default=os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
     a = ap.parse_args()
     folder = project_transcripts(a.project)
@@ -208,6 +302,9 @@ def main():
         files = [f for f in files if os.path.getmtime(f) > time.time() - a.days * 86400]
     if a.compare:
         compare([session(f) for f in files], a.compare)
+        return
+    if a.rules:
+        rule_table([session(f) for f in (files if a.days else files[-a.last:])])
         return
     files = files[-a.last:]
     rows = [session(f, a.top) for f in files]
