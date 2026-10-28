@@ -15,7 +15,7 @@ once with a check brief sized to what changed:
 The brief carries the change list and the facts script's output, so the model
 does not spend steps re-deriving them. It lets the stop through when the check
 already ran after the last change (Skill tool, or a "Check: clean" / "Check:
-found problems" report in the last reply), when the stop is a continuation
+found problems" line, or for anything short of a deploy "Check: not needed", in the last reply), when the stop is a continuation
 from this hook, or when the owner's latest message says "skip the check".
 
 PostToolUse (Bash): after a deploy.sh run, adds a note telling Claude to run the
@@ -89,6 +89,10 @@ PROD = re.compile(
 DEPLOY = re.compile(r"(^|[;&(]\s*|\|\|\s*)(\w+=\S+\s+)*(\S*/)?deploy(\.sh|-production\S*)\b", re.M)
 SKIP = re.compile(r"\b(skip|no|without)\s+(the\s+)?(check|checks|check-your-work)\b", re.I)
 REPORTED = re.compile(r"\*\*Check:\s*(clean|found problems)\*\*", re.I)
+# The one-line answer when the check already ran this turn or nothing changed after all; without it
+# the same changes blocked the stop again on every later turn. It never clears a deploy: the
+# post-deploy checks need a real report.
+NOT_NEEDED = re.compile(r"\*\*Check:\s*not needed\*\*", re.I)
 MAX_FACTS_LINES = 60
 
 
@@ -206,6 +210,8 @@ def scan(transcript_path):
                         continue
                     if block.get("type") == "text" and REPORTED.search(block.get("text", "")):
                         changes = []
+                    elif block.get("type") == "text" and NOT_NEEDED.search(block.get("text", "")):
+                        changes = [c for c in changes if c[0] == "deploy"]
                     elif block.get("type") == "tool_use":
                         name, inp = block.get("name", ""), block.get("input") or {}
                         if name in ("Agent", "Task"):
@@ -227,8 +233,21 @@ def tier_of(changes):
     return "note"
 
 
-def facts(prod):
-    args = ["python3", FACTS] + (["--prod"] if prod else [])
+def touched_repos(changes):
+    """Names of the configured repos the changes touch, or [] (meaning all) when any change names
+    no repo path, such as a git commit run from the current directory."""
+    repos = {name: os.path.expanduser(path).rstrip("/") + "/" for name, path in CFG["repos"].items()}
+    names = set()
+    for _, label in changes:
+        hit = [n for n, root in repos.items() if root in label + "/"]
+        if not hit:
+            return []
+        names.update(hit)
+    return sorted(names)
+
+
+def facts(prod, repos=()):
+    args = ["python3", FACTS] + (["--prod"] if prod else []) + (["--repos", ",".join(repos)] if repos else [])
     try:
         out = subprocess.run(args, capture_output=True, text=True, timeout=45 if prod else 12)
         text = (out.stdout or out.stderr).strip()
@@ -249,7 +268,7 @@ def brief(tier, changes):
     change_list = "\n".join(f"- {l}" for l in listed[:40])
     if len(listed) > 40:
         change_list += f"\n- ... {len(listed) - 40} more"
-    fact_text = facts(prod=(tier == "deploy"))
+    fact_text = facts(prod=(tier == "deploy"), repos=touched_repos(changes))
     head = (f"This session changed something since its last check (tier: {tier}). "
             f"Changes since then:\n{change_list}\n\nFacts (already run, do not run again):\n{fact_text}\n\n")
     if tier == "deploy":
@@ -267,7 +286,8 @@ def brief(tier, changes):
         "(Check: clean / found problems; Changed, Verified, Found and fixed, Not checked, Needs "
         "you), under 300 words. Pass it the change list and facts verbatim. When it returns, fix "
         "anything it found that is within the owner's request, then end with its report. "
-        "If you already did that this turn, or nothing changed after all, say so in one line.")
+        "If you already did that this turn, or nothing changed after all, reply with one line starting "
+        "**Check: not needed** and the reason.")
 
 
 def on_stop(data):

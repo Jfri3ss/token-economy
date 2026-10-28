@@ -24,6 +24,17 @@ TIERS = [
     ("do it", "continue"),
     ("Yes, merge CultivateMobile PR #307.", "continue"),
     ("ok", "continue"),
+    ("What's the command to install the Claude token usage program that we built?", "question"),
+    ("How do I see it on the plugin marketplace", "question"),
+    ("Is the release notes doc up to date?", "question"),
+    ("Why does the session cookie expire after an hour?", "hard"),
+    ("How does the refund window work?", "hard"),
+    ("Change how the access token is stored", "hard"),
+    ("Do 1\u20134", "continue"),
+    ("Is it crashing on launch?", "hard"),
+    ("How does checkout fail for new sellers", "hard"),
+    ("do all of them", "continue"),
+    ("Do 2 and 3 here", "continue"),
 ]
 failed = 0
 for p, want in TIERS:
@@ -45,5 +56,13 @@ AGENTS = [
 for name, inp, want in AGENTS:
     got = agent(inp); ok = got == want; failed += not ok
     print("PASS" if ok else "FAIL", name)
+# An unknown model (the first prompt, before the transcript names one) must not be sent to a fable Agent.
+for tier in ("hard", "routine", "build"):
+    line = r.route(tier, "unknown"); ok = "fable" not in line; failed += not ok
+    print("PASS" if ok else "FAIL", f"unknown model, {tier}: no fable Agent")
+os.environ["ANTHROPIC_MODEL"] = "claude-sonnet-5-5"
+ok = r.family(r.session_model(None)) == "sonnet"; failed += not ok
+print("PASS" if ok else "FAIL", "first prompt reads ANTHROPIC_MODEL")
+del os.environ["ANTHROPIC_MODEL"]
 os.unlink(cfg.name)
 print("failed:", failed); sys.exit(1 if failed else 0)

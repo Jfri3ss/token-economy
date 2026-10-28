@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 (2026-10-28)
+
+Fewer extra round trips. Guard: a bare `git log`, `find` or `ls -R` is now rewritten (`-n 20`, `| head -50`, with a note saying so) instead of refused, when it is one command of plain characters on relative paths with no flag that writes, runs a program or follows links (`-exec`, `-ok*`, `-delete`, `-fprint`, `-L`, `--output`, `--ext-diff`, `--textconv`). Everything else, `tree`, and all test and build runs are still refused, because a rewrite is auto-approved by the hook. Router: plain "token", "session", "table", "index", "release" and "terms" no longer make a prompt hard (only pairings like "access token" or "database table" do); a question is hard only when it asks why something fails or names one of your `hard_words`; "do 1–4", "do all of them" route as go-aheads; and on a session's first prompt the model is read from `ANTHROPIC_MODEL` or settings, and an unknown model no longer sends the work to a top-model Agent. Check: a `**Check: not needed**` line ends the request (never for a deploy), so the same changes stop blocking every later turn; the facts list only the repos the changes touch. Ledger: `chk` counts check subagents as well as skill runs.
+
 ## 0.2.2 (2026-10-28)
 
 Ledger `--rules`: denials, overrides, the cost of the extra round trip and an estimate of what the smaller retries saved, per guard rule, with a verdict that marks rules to loosen or drop. The guard now ends each denial with `[guard rule: <id>]`; older denials are matched by their wording. Fixed: when the denied call was one of several in a step, its sibling calls were taken for the retry, so some overrides were missed.

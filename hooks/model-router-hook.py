@@ -28,14 +28,21 @@ CFG = load()
 CHEAP = ("haiku", "sonnet")
 TOP = ("fable", "opus")
 
+# Plain "token", "session", "table", "index", "release" and "terms" sent everyday prompts ("the token
+# usage program", "this session") to the hard tier; they count only in the pairings below.
 HARD_WORDS = [
-    "auth", "token", "session", "security", "secret", "permission", "migration", "schema", "table", "index",
-    "deploy", "production", "prod", "release", "architect", "design", "redesign", "refactor", "debug", "crash",
+    "auth\\w*", "(access|refresh|api|jwt|bearer|csrf) tokens?", "session (cookie|expiry|fixation|hijack\\w*)s?",
+    "security", "secret", "permission", "migration", "schema", "(db|database|sql) (table|index)(es|s)?",
+    "deploy", "production", "prod", "architect", "design", "redesign", "refactor", "debug", "crash\\w*",
     "race", "deadlock", "concurren\\w*", "incident", "outage", "root cause", "contract", "api change",
-    "legal", "terms", "privacy", "error", "fail\\w*", "broken", "not working", "bug", "5\\d\\d", "regression",
+    "legal", "privacy", "error", "fail\\w*", "broken", "not working", "bug", "5\\d\\d", "regression",
     "why (does|is|did) .{0,40}(fail|break|crash|wrong)",
-] + [re.escape(w) for w in CFG["hard_words"]]
-HARD = re.compile(r"\b(" + "|".join(HARD_WORDS) + r")\b", re.I)
+]
+HARD = re.compile(r"\b(" + "|".join(HARD_WORDS + [re.escape(w) for w in CFG["hard_words"]]) + r")\b", re.I)
+# The owner's own hard_words make any question hard (how a payout hold works must be answered with care);
+# the generic words make a question hard only when it asks why something fails.
+DOMAIN = re.compile(r"\b(" + "|".join(re.escape(w) for w in CFG["hard_words"]) + r")\b", re.I) if CFG["hard_words"] else None
+DIAGNOSTIC = re.compile(r"\b(why|fail\w*|broken|not working|crash\w*|error|bug|wrong|5\d\d|5xx)\b", re.I)
 READ = re.compile(
     r"^(find|where|which files?|list|search|look up|look for|show me|summari[sz]e|read|review|audit|compare|"
     r"what('s| is) open|status of|how many|count|grep|trace|inventory|map out|survey)\b", re.I)
@@ -49,14 +56,16 @@ QUESTION = re.compile(r"^(what|why|how|is|are|can|could|does|do|did|should|would
 
 
 SHORT_GO = re.compile(r"^(do it|go|go ahead|yes|ok(ay)?|sure|proceed|continue|carry on|ship it|merge it|"
-                      r"yes,? .{0,60}|please do|make it so|all of (it|them)|both|that one)[.!]?$", re.I)
+                      r"yes,? .{0,60}|please do|make it so|all of (it|them)|both|that one|"
+                      r"do (it|all|both|them|these|those|that|this|all of (it|them)|#?\d[\d\s,&+–-]*(and #?\d+)?)"
+                      r"( (here|now|too|please))?)[.!]?$", re.I)
 
 
 def classify(prompt):
     p = prompt.strip()
     if len(p.split()) <= 6 and SHORT_GO.match(p):
         return "continue"
-    if HARD.search(p) and (ACTION.search(p) or QUESTION.search(p)):
+    if HARD.search(p) and (ACTION.search(p) or (QUESTION.search(p) and (DIAGNOSTIC.search(p) or (DOMAIN and DOMAIN.search(p))))):
         return "hard"
     if READ.search(p) and not re.search(r"\b(fix|change|edit|build|write|implement)\b", p, re.I):
         return "read"
@@ -77,9 +86,26 @@ def family(model):
     return "unknown"
 
 
+def configured_model():
+    """The model the session starts on, for the first prompt, before the transcript names one."""
+    if os.environ.get("ANTHROPIC_MODEL"):
+        return os.environ["ANTHROPIC_MODEL"]
+    for path in (os.path.join(CFG.get("project_dir") or os.getcwd(), ".claude", "settings.local.json"),
+                 os.path.join(CFG.get("project_dir") or os.getcwd(), ".claude", "settings.json"),
+                 os.path.expanduser("~/.claude/settings.json")):
+        try:
+            with open(path, encoding="utf-8") as f:
+                model = json.load(f).get("model")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if model:
+            return model
+    return None
+
+
 def session_model(transcript_path):
     if not transcript_path:
-        return None
+        return configured_model()
     model = None
     try:
         with open(transcript_path, encoding="utf-8") as f:
@@ -93,12 +119,15 @@ def session_model(transcript_path):
                 if e.get("type") == "assistant":
                     model = (e.get("message") or {}).get("model") or model
     except OSError:
-        return None
-    return model
+        return configured_model()
+    return model or configured_model()
 
 
 def route(tier, fam):
     on_top = fam in TOP
+    # Unknown model: give advice that holds on any model rather than guess it is a cheap one and send
+    # a one-line question to a top-model Agent.
+    known = fam != "unknown"
     if tier == "continue":
         return "Routing: go-ahead on the task already in hand; keep its routing and do it."
     if tier == "question":
@@ -113,7 +142,7 @@ def route(tier, fam):
                     "files and wording, then check its diff by path and report. Keep your own steps to three.")
         return "Routing: routine edit. Do it here directly; read by range, no subagents needed."
     if tier == "hard":
-        if on_top:
+        if on_top or not known:
             return ("Routing: hard task (payments, auth, schema, deploy, design or diagnosis). Do the thinking "
                     "here; send reads, searches and test runs to sonnet or haiku Agents and keep their output "
                     "out of this context.")

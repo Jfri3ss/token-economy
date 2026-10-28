@@ -8,7 +8,12 @@ small = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False); small.wri
 def run(name, inp):
     out = subprocess.run([sys.executable, HOOK], input=json.dumps({"tool_name": name, "tool_input": inp, "cwd": "/"}),
                          capture_output=True, text=True)
-    return bool(out.stdout.strip())
+    if not out.stdout.strip():
+        return False
+    hso = json.loads(out.stdout)["hookSpecificOutput"]
+    if hso.get("permissionDecision") == "allow":
+        return "rewrite:" + hso["updatedInput"]["command"]
+    return True
 
 CASES = [
     ("Read big no range -> deny", "Read", {"file_path": big.name}, True),
@@ -23,14 +28,37 @@ CASES = [
     ("git diff --stat -> allow", "Bash", {"command": "git diff --stat"}, False),
     ("git diff path -> allow", "Bash", {"command": "git diff -- api/a.php"}, False),
     ("git -C diff path -> allow", "Bash", {"command": "git -C ~/my-app diff src/a.js"}, False),
-    ("git log bare -> deny", "Bash", {"command": "git log"}, True),
+    ("git log bare -> rewrite", "Bash", {"command": "git log"}, "rewrite:git log -n 20"),
+    ("git log path -> rewrite", "Bash", {"command": "git log --format=%h -- api/a.php"}, "rewrite:git log -n 20 --format=%h -- api/a.php"),
+    ("git -C abs log -> deny", "Bash", {"command": "git -C /srv/app log"}, True),
+    ("git log chained -> deny", "Bash", {"command": "cd a && git log"}, True),
     ("git log -n -> allow", "Bash", {"command": "git log --oneline -n 10"}, False),
     ("git log -5 -> allow", "Bash", {"command": "git log -5"}, False),
     ("jest bare -> deny", "Bash", {"command": "npx jest src/x"}, True),
     ("jest tail -> allow", "Bash", {"command": "npx jest src/x 2>&1 | tail -40"}, False),
     ("phpunit grep -> allow", "Bash", {"command": "vendor/bin/phpunit 2>&1 | grep -E 'Tests:|FAIL'"}, False),
     ("tsc bare -> deny", "Bash", {"command": "cd ~/my-app && npx tsc --noEmit"}, True),
-    ("find bare -> deny", "Bash", {"command": "find . -name '*.php'"}, True),
+    ("find bare -> rewrite", "Bash", {"command": "find . -name '*.php'"}, "rewrite:find . -name '*.php' | head -50"),
+    ("ls -R -> rewrite", "Bash", {"command": "ls -R src"}, "rewrite:ls -R src | head -50"),
+    ("find absolute -> deny", "Bash", {"command": "find /etc -name '*.conf'"}, True),
+    ("find home -> deny", "Bash", {"command": "find ~ -name '*.md'"}, True),
+    ("find parent -> deny", "Bash", {"command": "find ../other -name x"}, True),
+    ("find substitution -> deny", "Bash", {"command": "find $(pwd) -name x"}, True),
+    ("find -exec -> no rewrite", "Bash", {"command": "find . -name x -fprint out"}, True),
+    ("find brace to root -> deny", "Bash", {"command": "find {/,.} -name x"}, True),
+    ("ls brace to parent -> deny", "Bash", {"command": "ls -R .{.,}"}, True),
+    ("find empty quotes root -> deny", "Bash", {"command": 'find ""/etc -name x'}, True),
+    ("find escaped root -> deny", "Bash", {"command": "find \\/etc -name x"}, True),
+    ("tree -o -> deny", "Bash", {"command": "tree -o out.txt"}, True),
+    ("git log --output -> deny", "Bash", {"command": "git log --output=x.txt"}, True),
+    ("git log --ext-diff -> deny", "Bash", {"command": "git log -p --ext-diff"}, True),
+    ("git log abbreviated --out -> deny", "Bash", {"command": "git log --out=o1"}, True),
+    ("find -okdir -> deny", "Bash", {"command": "find . -okdir rm {} +"}, True),
+    ("find comment -> deny", "Bash", {"command": "find . #x"}, True),
+    ("find -L -> deny", "Bash", {"command": "find -L . -name x"}, True),
+    ("ls -RL -> deny", "Bash", {"command": "ls -RL src"}, True),
+    ("ls -R unquoted glob -> deny", "Bash", {"command": "ls -R .*"}, True),
+    ("git -C path with log in it -> rewrite at subcommand", "Bash", {"command": "git -C logs/log log"}, "rewrite:git -C logs/log log -n 20"),
     ("find head -> allow", "Bash", {"command": "find . -name '*.php' | head -50"}, False),
     ("#full escape -> allow", "Bash", {"command": "git diff #full"}, False),
     ("commit message naming pytest -> allow", "Bash", {"command": 'git commit -m "Run pytest in the hook."'}, False),
@@ -52,10 +80,17 @@ for name, tool, inp, want in CASES:
     print("PASS" if ok else "FAIL", name)
 # Each denial names its rule so the ledger can count overrides per rule.
 for tool, inp, rule in (("Read", {"file_path": big.name}, "read-large"), ("Bash", {"command": "git diff"}, "git-diff"),
-                        ("Bash", {"command": "find ."}, "listing")):
+                        ("Bash", {"command": "find /srv"}, "listing")):
     out = subprocess.run([sys.executable, HOOK], input=json.dumps({"tool_name": tool, "tool_input": inp, "cwd": "/"}),
                          capture_output=True, text=True).stdout
     ok = f"[guard rule: {rule}]" in out; failed += not ok
     print("PASS" if ok else "FAIL", f"denial tagged {rule}")
+# Each rewrite is tagged too, and keeps the other input fields.
+out = json.loads(subprocess.run([sys.executable, HOOK], input=json.dumps(
+    {"tool_name": "Bash", "tool_input": {"command": "find .", "description": "list", "timeout": 5000}, "cwd": "/"}),
+    capture_output=True, text=True).stdout)["hookSpecificOutput"]
+ok = ("[guard rewrite: listing]" in out["additionalContext"] and out["updatedInput"]["description"] == "list"
+      and out["updatedInput"]["timeout"] == 5000); failed += not ok
+print("PASS" if ok else "FAIL", "rewrite tagged and keeps other fields")
 os.unlink(big.name); os.unlink(small.name)
 print("failed:", failed); sys.exit(1 if failed else 0)
