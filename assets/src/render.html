@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><body style="background:#333">
+<script>
+async function render(file, w, h) {
+  const svg = await (await fetch(file)).text();
+  const img = new Image();
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  await img.decode();
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  c.getContext("2d").drawImage(img, 0, 0, w, h);
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  const res = await fetch("/save?name=" + file.replace(".svg", ".png"), {method: "POST", body: blob});
+  return file + " " + w + "x" + h + " " + (await res.text()) + " " + blob.size;
+}
+</script>

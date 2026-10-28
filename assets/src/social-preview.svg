@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640"><defs><linearGradient id="coin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5BEBAE"/><stop offset="1" stop-color="#2FC486"/></linearGradient><radialGradient id="glow" cx="88%" cy="0%" r="70%"><stop offset="0" stop-color="#1d5a40" stop-opacity="0.85"/><stop offset="1" stop-color="#0b0b0f" stop-opacity="0"/></radialGradient><style>.t{font-family:Inter,-apple-system,Helvetica,sans-serif}.m{font-family:"SF Mono",Menlo,monospace}</style></defs>
+<rect width="1280" height="640" fill="#0b0b0f"/><rect width="1280" height="640" fill="url(#glow)"/>
+<g transform="translate(72,64) scale(0.0859)"><rect x="0" y="0" width="1024" height="1024" rx="200" fill="#14151c" stroke="#2a2b36" stroke-width="12"/>
+<circle cx="512" cy="512" r="290" fill="none" stroke="url(#coin)" stroke-width="56"/>
+<circle cx="512" cy="512" r="218" fill="none" stroke="#3ddc97" stroke-opacity="0.28" stroke-width="12"/>
+<polyline points="356,410 470,524 548,456 668,576" fill="none" stroke="#f4f4f6" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/>
+<polyline points="590,590 676,584 670,498" fill="none" stroke="#f4f4f6" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/></g>
+<rect x="172" y="76" width="226" height="40" rx="20" fill="none" stroke="#3ddc97" stroke-width="2"/>
+<text class="t" x="285" y="102" font-size="16" font-weight="600" fill="#3ddc97" text-anchor="middle" letter-spacing="2">CLAUDE CODE PLUGIN</text>
+<text class="t" x="1208" y="104" font-size="19" fill="#6e6e7c" text-anchor="end">github.com/Jfri3ss/token-economy</text>
+<text class="t" x="68" y="258" font-size="92" font-weight="700" fill="#f4f4f6" letter-spacing="-2.5">token-economy</text>
+<text class="t" x="72" y="318" font-size="32" fill="#9a9aa8">Cut Claude Code token spend</text>
+<text class="t" x="72" y="360" font-size="32" fill="#9a9aa8">without cutting corners.</text>
+<rect x="830" y="164" width="378" height="208" rx="16" fill="#14151c" stroke="#2a2b36" stroke-width="1.5"/>
+<text class="t" x="858" y="206" font-size="15" font-weight="600" fill="#6e6e7c" letter-spacing="1.5">WHERE THE TOKENS GO</text>
+<text class="m" x="858" y="256" font-size="34" fill="#3ddc97">steps × context</text>
+<text class="t" x="858" y="304" font-size="19" fill="#9a9aa8">One real session: 985 steps,</text>
+<text class="t" x="858" y="334" font-size="19" font-weight="600" fill="#f4f4f6">506M tokens re-read.</text>
+<g><rect x="72" y="420" width="186" height="44" rx="22" fill="#15161d" stroke="#2a2b36" stroke-width="1.5"/><circle cx="94" cy="442" r="5" fill="#3ddc97"/><text class="t" x="110" y="449" font-size="19" font-weight="500" fill="#e8e8ee">Model router</text></g><g><rect x="272" y="420" width="180" height="44" rx="22" fill="#15161d" stroke="#2a2b36" stroke-width="1.5"/><circle cx="294" cy="442" r="5" fill="#3ddc97"/><text class="t" x="310" y="449" font-size="19" font-weight="500" fill="#e8e8ee">Output guard</text></g><g><rect x="466" y="420" width="166" height="44" rx="22" fill="#15161d" stroke="#2a2b36" stroke-width="1.5"/><circle cx="488" cy="442" r="5" fill="#3ddc97"/><text class="t" x="504" y="449" font-size="19" font-weight="500" fill="#e8e8ee">Sized check</text></g><g><rect x="646" y="420" width="172" height="44" rx="22" fill="#15161d" stroke="#2a2b36" stroke-width="1.5"/><circle cx="668" cy="442" r="5" fill="#3ddc97"/><text class="t" x="684" y="449" font-size="19" font-weight="500" fill="#e8e8ee">Token ledger</text></g>
+<rect x="72" y="500" width="1136" height="70" rx="12" fill="#14151c" stroke="#2a2b36" stroke-width="1.5"/>
+<text class="m" x="100" y="544" font-size="22" fill="#e8e8ee"><tspan fill="#3ddc97">$ </tspan>claude plugin install token-economy --marketplace Jfri3ss/token-economy</text>
+<text class="t" x="72" y="608" font-size="16" fill="#5c5c6a">Free and open source · MIT</text>
+</svg>
