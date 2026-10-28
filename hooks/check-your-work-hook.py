@@ -15,7 +15,7 @@ once with a check brief sized to what changed:
 The brief carries the change list and the facts script's output, so the model
 does not spend steps re-deriving them. It lets the stop through when the check
 already ran after the last change (Skill tool, or a "Check: clean" / "Check:
-found problems" / "Check: not needed" line in the last reply), when the stop is a continuation
+found problems" line, or for anything short of a deploy "Check: not needed", in the last reply), when the stop is a continuation
 from this hook, or when the owner's latest message says "skip the check".
 
 PostToolUse (Bash): after a deploy.sh run, adds a note telling Claude to run the
@@ -88,9 +88,11 @@ PROD = re.compile(
 # deploy.sh run as a command, not just named inside an argument.
 DEPLOY = re.compile(r"(^|[;&(]\s*|\|\|\s*)(\w+=\S+\s+)*(\S*/)?deploy(\.sh|-production\S*)\b", re.M)
 SKIP = re.compile(r"\b(skip|no|without)\s+(the\s+)?(check|checks|check-your-work)\b", re.I)
-# "not needed" is the one-line answer when the check already ran this turn or nothing changed after
-# all; without it the same changes blocked the stop again on every later turn.
-REPORTED = re.compile(r"\*\*Check:\s*(clean|found problems|not needed)\*\*", re.I)
+REPORTED = re.compile(r"\*\*Check:\s*(clean|found problems)\*\*", re.I)
+# The one-line answer when the check already ran this turn or nothing changed after all; without it
+# the same changes blocked the stop again on every later turn. It never clears a deploy: the
+# post-deploy checks need a real report.
+NOT_NEEDED = re.compile(r"\*\*Check:\s*not needed\*\*", re.I)
 MAX_FACTS_LINES = 60
 
 
@@ -208,6 +210,8 @@ def scan(transcript_path):
                         continue
                     if block.get("type") == "text" and REPORTED.search(block.get("text", "")):
                         changes = []
+                    elif block.get("type") == "text" and NOT_NEEDED.search(block.get("text", "")):
+                        changes = [c for c in changes if c[0] == "deploy"]
                     elif block.get("type") == "tool_use":
                         name, inp = block.get("name", ""), block.get("input") or {}
                         if name in ("Agent", "Task"):

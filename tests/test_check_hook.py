@@ -69,6 +69,8 @@ CASES = [
         user("<agent-message>\n  **Check: clean**\n  - Changed: a.php\n</agent-message>")], None),
     ("not needed line -> no block", [user("fix"), tool("Edit", {"file_path": "/x/a.php"}),
         text("**Check: not needed** - the check ran earlier this turn.")], None),
+    ("not needed after deploy -> deploy", [user("ship"), tool("Bash", {"command": "./deploy.sh --pull-only"}),
+        text("**Check: not needed**")], "deploy"),
     ("change after not needed -> local", [user("fix"), tool("Edit", {"file_path": "/x/a.php"}),
         text("**Check: not needed**"), tool("Edit", {"file_path": "/x/b.js"})], "local"),
     ("scratch-only bash -> no block", [user("x"), tool("Bash", {"command": "echo hi > /private/tmp/claude-501/s/out.txt"})], None),

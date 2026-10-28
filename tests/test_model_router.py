@@ -31,6 +31,8 @@ TIERS = [
     ("How does the refund window work?", "hard"),
     ("Change how the access token is stored", "hard"),
     ("Do 1\u20134", "continue"),
+    ("Is it crashing on launch?", "hard"),
+    ("How does checkout fail for new sellers", "hard"),
     ("do all of them", "continue"),
     ("Do 2 and 3 here", "continue"),
 ]

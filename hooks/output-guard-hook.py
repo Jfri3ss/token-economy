@@ -58,8 +58,34 @@ def rewrite(inp, command, note, rule):
                                    "additionalContext": f"{note} [guard rewrite: {rule}]"}}
 
 
-# One simple command: no chaining, pipes, redirects, substitutions or absolute, home or parent paths.
-UNSAFE_FOR_REWRITE = re.compile(r"[;&|<>`$\n]|(^|\s)[\"']?(/|~)|\.\.")
+# A rewrite is auto-approved, so it is allowed only for a command built from plain characters (no
+# expansion, escapes, chaining, redirects or comments), with no absolute, home or parent path, no
+# unquoted glob, and no flag that writes, runs a program or follows links out of the project.
+REWRITE_CHARS = re.compile(r"^[\w ./@=,:%+'*?-]+$")
+UNSAFE_FLAG = {
+    "find": re.compile(r"^-(exec\w*|ok\w*|delete|fprint\w*|fls|L|H|follow|files0-from)$"),
+    "ls": re.compile(r"^(--.*|-\S*L\S*)$"),
+    "git": re.compile(r"^--(output|ext-diff|textconv|exec)"),
+}
+
+
+def rewrite_tokens(cmd, prog):
+    """The command's words when it is safe to rewrite and auto-approve, else None."""
+    if not REWRITE_CHARS.match(cmd):
+        return None
+    unquoted = re.sub(r"'[^']*'", "", cmd)
+    if "'" in unquoted or "*" in unquoted or "?" in unquoted or (prog == "git" and "'" in cmd):
+        return None
+    try:
+        toks = shlex.split(cmd)
+    except ValueError:
+        return None
+    if toks[0] != prog:
+        return None
+    for t in toks[1:]:
+        if t.startswith(("/", "~")) or ".." in t or UNSAFE_FLAG[prog].match(t):
+            return None
+    return toks
 
 
 def count_lines(path, cwd):
@@ -127,8 +153,10 @@ def check_bash(cmd, cwd, inp=None):
                 limited = any(re.match(r"^-\d+$|^-n$|^--max-count|^-n\d+$|^--since|^--after|^-L", t) or ".." in t
                               for t in toks) or "--oneline" in toks
                 if not limited:
-                    if inp is not None and not UNSAFE_FOR_REWRITE.search(cmd.strip()):
-                        new = re.sub(r"\blog\b", "log -n 20", cmd.strip(), count=1)
+                    raw = cmd.strip()
+                    if inp is not None and seg == raw and rewrite_tokens(raw, "git"):
+                        # No quotes in raw, so seg is raw and the match offsets apply to it.
+                        new = raw[:g.end(1)] + " -n 20" + raw[g.end(1):]
                         return rewrite(inp, new, "git log had no count, so -n 20 was added; "
                                        "ask for more with -n or a range, or add #full.", "git-log")
                     return deny("git log without a count prints the whole history. Add -n 20 (and --oneline).", "git-log")
@@ -137,8 +165,8 @@ def check_bash(cmd, cwd, inp=None):
                         "`2>&1 | tail -40` (or grep for FAIL/error), or add #full.", "test-output")
         if (re.match(r"^(find\s|ls\s+-[a-zA-Z]*R|tree\b)", seg) and not TRIM.search(seg)
                 and not re.search(r"-maxdepth\s+[12]\b|-exec\b|-delete\b|-L\s*[12]\b", seg)):
-            if (inp is not None and seg == bare.strip() and not UNSAFE_FOR_REWRITE.search(cmd.strip())
-                    and not re.search(r"-(exec|execdir|ok|delete|fprint\w*|fls)\b", cmd)):
+            prog = seg.split()[0]
+            if inp is not None and prog in ("find", "ls") and seg == bare.strip() and rewrite_tokens(cmd.strip(), prog):
                 return rewrite(inp, cmd.strip() + " | head -50", "The listing was piped through head -50; "
                                "narrow it or add #full to see everything.", "listing")
             return deny("That listing can be very long. Pipe it through | head -50 or narrow it, or add #full.", "listing")

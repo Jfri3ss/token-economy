@@ -33,7 +33,7 @@ TOP = ("fable", "opus")
 HARD_WORDS = [
     "auth\\w*", "(access|refresh|api|jwt|bearer|csrf) tokens?", "session (cookie|expiry|fixation|hijack\\w*)s?",
     "security", "secret", "permission", "migration", "schema", "(db|database|sql) (table|index)(es|s)?",
-    "deploy", "production", "prod", "architect", "design", "redesign", "refactor", "debug", "crash",
+    "deploy", "production", "prod", "architect", "design", "redesign", "refactor", "debug", "crash\\w*",
     "race", "deadlock", "concurren\\w*", "incident", "outage", "root cause", "contract", "api change",
     "legal", "privacy", "error", "fail\\w*", "broken", "not working", "bug", "5\\d\\d", "regression",
     "why (does|is|did) .{0,40}(fail|break|crash|wrong)",
@@ -42,7 +42,7 @@ HARD = re.compile(r"\b(" + "|".join(HARD_WORDS + [re.escape(w) for w in CFG["har
 # The owner's own hard_words make any question hard (how a payout hold works must be answered with care);
 # the generic words make a question hard only when it asks why something fails.
 DOMAIN = re.compile(r"\b(" + "|".join(re.escape(w) for w in CFG["hard_words"]) + r")\b", re.I) if CFG["hard_words"] else None
-DIAGNOSTIC = re.compile(r"\b(why|fail\\w*|broken|not working|crash\\w*|error|bug|wrong|5\\d\\d)\b", re.I)
+DIAGNOSTIC = re.compile(r"\b(why|fail\w*|broken|not working|crash\w*|error|bug|wrong|5\d\d|5xx)\b", re.I)
 READ = re.compile(
     r"^(find|where|which files?|list|search|look up|look for|show me|summari[sz]e|read|review|audit|compare|"
     r"what('s| is) open|status of|how many|count|grep|trace|inventory|map out|survey)\b", re.I)
