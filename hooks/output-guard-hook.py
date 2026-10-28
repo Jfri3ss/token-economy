@@ -65,7 +65,7 @@ REWRITE_CHARS = re.compile(r"^[\w ./@=,:%+'*?-]+$")
 UNSAFE_FLAG = {
     "find": re.compile(r"^-(exec\w*|ok\w*|delete|fprint\w*|fls|L|H|follow|files0-from)$"),
     "ls": re.compile(r"^(--.*|-\S*L\S*)$"),
-    "git": re.compile(r"^--(output|ext-diff|textconv|exec)"),
+    "git": re.compile(r"^--(o|e|t)"),  # --output, --ext-diff, --textconv, --exec and their abbreviations
 }
 
 

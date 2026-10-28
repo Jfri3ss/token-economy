@@ -52,6 +52,7 @@ CASES = [
     ("tree -o -> deny", "Bash", {"command": "tree -o out.txt"}, True),
     ("git log --output -> deny", "Bash", {"command": "git log --output=x.txt"}, True),
     ("git log --ext-diff -> deny", "Bash", {"command": "git log -p --ext-diff"}, True),
+    ("git log abbreviated --out -> deny", "Bash", {"command": "git log --out=o1"}, True),
     ("find -okdir -> deny", "Bash", {"command": "find . -okdir rm {} +"}, True),
     ("find comment -> deny", "Bash", {"command": "find . #x"}, True),
     ("find -L -> deny", "Bash", {"command": "find -L . -name x"}, True),
