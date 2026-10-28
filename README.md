@@ -1,6 +1,8 @@
-# token-economy
+<p align="center">
+  <img src="assets/banner.png" alt="token-economy: cut Claude Code token spend without cutting corners" width="100%">
+</p>
 
-![token-economy: cut Claude Code token spend without cutting corners](assets/social-preview.png)
+# token-economy
 
 [![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-3DDC97?style=flat-square)](https://code.claude.com/docs/en/plugins)
 [![License: MIT](https://img.shields.io/badge/license-MIT-3DDC97?style=flat-square)](LICENSE)
@@ -46,6 +48,10 @@ python3 "$(ls -d ~/.claude/plugins/cache/emmber/token-economy/*/ | tail -1)scrip
 
 ## What's inside
 
+<p align="center">
+  <img src="assets/how-it-works.png" alt="How it works: the model router runs when you send a prompt, the output guard when Claude calls a tool, the sized check when the turn ends, and the token ledger whenever you ask" width="100%">
+</p>
+
 - **Model router.** Classifies every prompt as a question, a read, a routine edit, a build or a hard task, and tells the session where the heavy part should run. A top model spends its limit on judgment; Sonnet and Haiku do the reading, testing and typing. It also refuses an Agent call whose model doesn't fit its brief.
 - **Output guard.** Refuses the few command shapes that dump thousands of lines into the context (whole-file reads, bare `git diff`, untailed test runs, long listings) and names the smaller form. Add `#full` to any command to run it as written.
 - **Sized end-of-turn check.** A Stop hook that asks the session to check its own work, sized to what changed: nothing for a doc edit, a Sonnet subagent for code, the full check in the main session for a deploy.
@@ -54,7 +60,7 @@ python3 "$(ls -d ~/.claude/plugins/cache/emmber/token-economy/*/ | tail -1)scrip
 
 ## Why it works
 
-Measured over a week of real sessions on one project, the cost was not tool output. It was **model steps multiplied by context size**: every step re-sends the whole conversation, so a session that grows to 800K tokens of context pays that on every one of its steps. One session of 944 steps re-read 435 million tokens; the six sessions around it, 145 million together. Tool output over the same week was 2.5 MB, about 600K tokens. A check hook that fired at the end of every turn, when the context was largest, blocked 61 times for 16 real checks.
+Measured over a week of real sessions on one project (329 sessions, 19–26 October 2026), the cost was not tool output. It was **model steps multiplied by context size**: every step re-sends the whole conversation, so a session that grows to 800K tokens of context pays that on every one of its steps. The biggest session ran 985 steps and re-read 506 million tokens; the whole week re-read 4.4 billion. Tool output over the same week was 116 MB, about 30 million tokens, well under 1% of that.
 
 So the levers are, in order: fewer and shorter sessions, fewer steps per turn, a smaller fixed context, and keeping work that doesn't need the top model off it. This plugin automates the last three. The first is a habit: start a fresh session per task, and watch the ledger's context column.
 
